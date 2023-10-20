@@ -1,105 +1,26 @@
 import csv
-import logging
-from urllib.request import Request, urlopen
 
-import requests
-from bs4 import BeautifulSoup
-
+from utils.soup_extraction import *
 from utils.utils import string_to_float, float_to_string
 
-
-def get_links(url):
-    # generating list of URLs
-    req = Request(url)
-    html_page = urlopen(req)
-
-    soup = BeautifulSoup(html_page, "lxml")
-
-    links = []
-
-    for link in soup.findAll('a'):
-        links.append(link.get('href'))
-
-    links.remove('index.html')
-    links.remove('../glossar.html')
-    links.remove('../impressum.html')
-    links.remove('../datenschutz.html')
-    links.remove('../hinweise.html')
-
-    for link in links:
-        if link.endswith('.pdf'):
-            links.remove(link)
-    return links
+BASE_URL = "https://www.bvwp-projekte.de/schiene/"
 
 
-def get_values_of_projects(links):
-    values_of_project = dict()
+def analyze_rail():
+    logging.info("Scraping links of all projects.")
+    links = get_links(BASE_URL)
 
-    for link in links:
-        get_values_of_project(link, values_of_project)
+    logging.info("Scraping values for projects.")
+    values_of_project = get_values_of_projects(BASE_URL, links, False)
 
-    # manual project-additions
     add_projects_manually(values_of_project)
 
-    return values_of_project
+    # calculation of new benefit-cost ratios
+    logging.info("Adding new cost benefit ratios.")
+    calc_and_add_new_cost_benefit(values_of_project)
 
-
-def get_values_of_project(link, values_of_project):
-    url = f'https://www.bvwp-projekte.de/schiene/{link}'
-    page = requests.get(url)
-    soup = BeautifulSoup(page.content, 'html.parser')
-    project_id = link.split('/')[0]
-
-    logging.info(f"Project ID: {project_id}. Extracting values.")
-
-    values_of_project[project_id] = get_initial_project_data(project_id)
-    try:
-        extract_values_of_project(project_id, values_of_project, soup)
-    except IndexError:
-        logging.warning(f"Project ID: {project_id}. Couldn't extract some value. Is a subproject.")
-        values_of_project.pop(project_id)
-
-
-def extract_values_of_project(project_id, values_of_project, soup):
-    get_project_name(project_id, values_of_project, soup)
-    get_project_priority(project_id, values_of_project, soup)
-    get_project_co2(project_id, values_of_project, soup)
-    get_project_nox(project_id, values_of_project, soup)
-    get_project_co(project_id, values_of_project, soup)
-    get_project_hc(project_id, values_of_project, soup)
-    get_project_pm(project_id, values_of_project, soup)
-    get_project_so2(project_id, values_of_project, soup)
-    get_project_benefit(project_id, values_of_project, soup)
-    get_project_costs(project_id, values_of_project, soup)
-
-
-def handle_subproject(project_id, values_of_project):
-    key = ""
-    logging.warning(
-        f"Project ID: {project_id}. Key not found: '{key}'. Project is Continue with next project")
-    values_of_project.pop(project_id)
-
-
-def get_initial_project_data(project_id):
-    return {
-        "project-name": project_id,
-        "name": None,
-        "gesamt_co2": None,
-        "co2_em": None,
-        "barwert_gesamt_co2": None,
-        "nox_value": None,
-        "barwert_nox": None,
-        "co_value": None,
-        "barwert_co": None,
-        "hc_value": None,
-        "barwert_hc": None,
-        "pm_value": None,
-        "barwert_pm": None,
-        "so2_value": None,
-        "barwert_so2": None,
-        "gesamtnutzen": None,
-        "kosten": None,
-    }
+    logging.info("Writing csv file.")
+    write_to_csv(values_of_project)
 
 
 def add_projects_manually(values_of_project):
@@ -225,101 +146,6 @@ def add_projects_manually(values_of_project):
     }
 
 
-def get_project_costs(project_id, values_of_project, soup):
-    Tables = soup.findAll('table', attrs={'class': 'table_kosten'})
-    for table in Tables:
-        for row in table:
-            if 'Summe bewertungsrelevante Investitionskosten' in row.text:
-                kosten = row.contents[2].text
-                values_of_project[project_id]["kosten"] = kosten
-
-
-def get_project_benefit(project_id, values_of_project, soup):
-    Table = soup.findAll('table', attrs={'class': 'table_webprins'})[10]
-    for row in Table:
-        if 'Summe Nutzen' in row.text:
-            gesamtnutzen = row.contents[3].text
-            values_of_project[project_id]["gesamtnutzen"] = gesamtnutzen
-
-
-def get_project_so2(project_id, values_of_project, soup):
-    Table = soup.findAll('table', attrs={'class': 'table_webprins'})[12]
-    for row in Table:
-        if 'Schwefeldioxid-Emissionen' in row.text:
-            so2_value = row.contents[4].text
-            values_of_project[project_id]["so2_value"] = so2_value
-            barwert_so2 = row.contents[5].text
-            values_of_project[project_id]["barwert_so2"] = barwert_so2
-
-
-def get_project_pm(project_id, values_of_project, soup):
-    Table = soup.findAll('table', attrs={'class': 'table_webprins'})[12]
-    for row in Table:
-        if 'Feinstaub-Emissionen' in row.text:
-            pm_value = row.contents[4].text
-            values_of_project[project_id]["pm_value"] = pm_value
-            barwert_pm = row.contents[5].text
-            values_of_project[project_id]["barwert_pm"] = barwert_pm
-
-
-def get_project_hc(project_id, values_of_project, soup):
-    Table = soup.findAll('table', attrs={'class': 'table_webprins'})[12]
-    for row in Table:
-        if 'Kohlenwasserstoff-Emissionen' in row.text:
-            hc_value = row.contents[4].text
-            values_of_project[project_id]["hc_value"] = hc_value
-            barwert_hc = row.contents[5].text
-            values_of_project[project_id]["barwert_hc"] = barwert_hc
-
-
-def get_project_co(project_id, values_of_project, soup):
-    Table = soup.findAll('table', attrs={'class': 'table_webprins'})[12]
-    for row in Table:
-        if 'Kohlenmonoxid-Emissionen' in row.text:
-            co_value = row.contents[4].text
-            values_of_project[project_id]["co_value"] = co_value
-            barwert_co = row.contents[5].text
-            values_of_project[project_id]["barwert_co"] = barwert_co
-
-
-def get_project_nox(project_id, values_of_project, soup):
-    Table = soup.findAll('table', attrs={'class': 'table_webprins'})[12]
-    for row in Table:
-        if 'Stickoxid-Emissionen' in row.text:
-            nox_value = row.contents[4].text
-            values_of_project[project_id]["nox_value"] = nox_value
-            barwert_nox = row.contents[5].text
-            values_of_project[project_id]["barwert_nox"] = barwert_nox
-
-
-def get_project_co2(project_id, values_of_project, soup):
-    Table = soup.findAll('table', attrs={'class': 'table_webprins'})[12]
-    for row in Table:
-        if 'Äquivalenten aus Lebenszyklusemissionen' in row.text:
-            co2_em = row.contents[2].text
-            values_of_project[project_id]["co2_em"] = co2_em
-            gesamt_co2 = row.contents[4].text
-            values_of_project[project_id]["gesamt_co2"] = gesamt_co2
-            barwert_gesamt_co2 = row.contents[5].text
-            values_of_project[project_id]["barwert_gesamt_co2"] = barwert_gesamt_co2
-
-
-def get_project_priority(project_id, values_of_project, soup):
-    Table = soup.findAll('table', attrs={'class': 'table_grunddaten'})[1]
-    for row in Table:
-        if 'Dringlichkeitseinstufung' in row.text:
-            DE = row.contents[1].text
-            values_of_project[project_id]["Dringlichkeit"] = DE
-
-
-def get_project_name(project_id, values_of_project, soup):
-    Table = soup.findAll('table', attrs={'class': 'table_grunddaten'})[0]
-    for row in Table:
-        if 'Maßnahmetitel' in row.text:
-            name = row.contents[1].text
-            values_of_project[project_id]["name"] = name
-
-
 def write_to_csv(values_of_project):
     header = ['name', 'project-name', 'Dringlichkeit', 'co2_em', 'gesamt_co2', 'barwert_gesamt_co2', 'nox_value',
               'barwert_nox', 'co_value', 'barwert_co', 'hc_value', 'barwert_hc', 'pm_value', 'barwert_pm', 'so2_value',
@@ -330,23 +156,11 @@ def write_to_csv(values_of_project):
         writer.writerows(list(values_of_project.values()))
 
 
-def analyze_rail():
-    logging.info("Scraping links of all projects.")
-    links = get_links("https://www.bvwp-projekte.de/schiene/")
-
-    logging.info("Beginning value extraction for project.")
-    values_of_project = get_values_of_projects(links)
-
-    # calculation of new benefit-cost ratios
+def calc_and_add_new_cost_benefit(values_of_project):
     for project_values in values_of_project.values():
         kosten = string_to_float(project_values['kosten'])
         gesamtnutzen = string_to_float(project_values['gesamtnutzen'])
         barwert_gesamt_co2 = string_to_float(project_values['barwert_gesamt_co2'])
-        barwert_nox = string_to_float(project_values['barwert_nox'])
-        barwert_co = string_to_float(project_values['barwert_co'])
-        barwert_hc = string_to_float(project_values['barwert_hc'])
-        barwert_pm = string_to_float(project_values['barwert_pm'])
-        barwert_so2 = string_to_float(project_values['barwert_so2'])
 
         project_values['nkv'] = float_to_string(gesamtnutzen / kosten)
         project_values['nkv_670'] = float_to_string(
@@ -357,10 +171,6 @@ def analyze_rail():
             (gesamtnutzen - barwert_gesamt_co2 + (1500 / 145) * (barwert_gesamt_co2)) / kosten)
         project_values['nkv_2000'] = float_to_string(
             (gesamtnutzen - barwert_gesamt_co2 + (2000 / 145) * (barwert_gesamt_co2)) / kosten)
-
-    write_to_csv(values_of_project)
-
-    # create_plots(values_of_project)
 
 
 if __name__ == '__main__':
