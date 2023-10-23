@@ -11,7 +11,7 @@ def analyze_all_emissions():
     links = get_links(BASE_URL)
 
     logging.info("Scraping values for projects.")
-    values_of_project = get_values_of_projects(BASE_URL, links, True)
+    values_of_project = get_values_of_projects(BASE_URL, links, Type.STREET)
 
     logging.info("Cleaning up values.")
     clean_up_values(values_of_project)

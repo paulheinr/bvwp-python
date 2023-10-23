@@ -1,8 +1,24 @@
 import logging
+from enum import Enum
 from urllib.request import urlopen, Request
 
 import requests
 from bs4 import BeautifulSoup
+
+PROJECT_KEYS_STREET = ['project-name', 'lifec_em', 'lifecycle_em', 'barwert_lifecycle_em', 'nox_value', 'barwert_nox',
+                       'co_value', 'barwert_co', 'co2_em', 'co2_value', 'barwert_co2', 'hc_value', 'barwert_hc',
+                       'pm_value', 'barwert_pm', 'so2_value', 'barwert_so2', 'gesamtnutzen', 'kosten', 'nkv', 'nkv_670',
+                       'nkv_1000', 'nkv_1500', 'nkv_2000', 'nkv_90', 'nkv_95', 'nkv_975', 'nkv_995']
+
+PROJECT_KEYS_RAIL = ['name', 'project-name', 'Dringlichkeit', 'co2_em', 'gesamt_co2', 'barwert_gesamt_co2', 'nox_value',
+                     'barwert_nox', 'co_value', 'barwert_co', 'hc_value', 'barwert_hc', 'pm_value', 'barwert_pm',
+                     'so2_value', 'barwert_so2', 'gesamtnutzen', 'kosten', 'nkv', 'nkv_670', 'nkv_1000', 'nkv_1500',
+                     'nkv_2000']
+
+
+class Type(Enum):
+    RAIL = 0
+    STREET = 1
 
 
 def fill_project_costs(project_id, values_of_project, soup):
@@ -133,11 +149,11 @@ def fill_street_project_co(project_id, values_of_project, soup):
         for row in table:
             if 'Veränderung der Abgasbelastungen' in row.text:
                 abgasbelastung = True
-            if 'Kohlendioxid-Emissionen' in row.text and abgasbelastung:
-                co2_value = row.contents[2].text
-                values_of_project[project_id]["co2_value"] = co2_value
-                barwert_co2 = row.contents[3].text
-                values_of_project[project_id]["barwert_co2"] = barwert_co2
+            if 'Kohlenmonoxid-Emissionen' in row.text and abgasbelastung:
+                co_value = row.contents[2].text
+                values_of_project[project_id]["co_value"] = co_value
+                barwert_co = row.contents[3].text
+                values_of_project[project_id]["barwert_co"] = barwert_co
 
 
 def fill_rail_project_nox(project_id, values_of_project, soup):
@@ -186,6 +202,18 @@ def fill_street_project_co2(project_id, values_of_project, soup):
             if 'Kohlendioxid-Emissionen' in row.text and abgasemission:
                 co2_em = row.contents[3].text
                 values_of_project[project_id]["co2_em"] = co2_em
+
+    Tables = soup.findAll('table', attrs={'class': 'table_webprins'})
+    for table in Tables:
+        abgasbelastung = False
+        for row in table:
+            if 'Veränderung der Abgasbelastungen' in row.text:
+                abgasbelastung = True
+            if 'Kohlendioxid-Emissionen' in row.text and abgasbelastung:
+                co2_value = row.contents[2].text
+                values_of_project[project_id]["co2_value"] = co2_value
+                barwert_co2 = row.contents[3].text
+                values_of_project[project_id]["barwert_co2"] = barwert_co2
 
 
 def fill_rail_project_priority(project_id, values_of_project, soup):
@@ -244,7 +272,6 @@ def extract_and_fill_values_of_street_project(project_id, values_of_project, sou
     fill_street_project_nox(project_id, values_of_project, soup)
     fill_street_project_co(project_id, values_of_project, soup)
     fill_street_project_co2(project_id, values_of_project, soup)
-    fill_street_project_co(project_id, values_of_project, soup)
     fill_street_project_hc(project_id, values_of_project, soup)
     fill_street_project_pm(project_id, values_of_project, soup)
     fill_street_project_so2(project_id, values_of_project, soup)
@@ -273,56 +300,31 @@ def get_links(url):
     return links
 
 
-def get_values_of_projects(base_url, links, lifecycle_em):
+def get_values_of_projects(base_url, links, project_type):
     values_of_project = dict()
 
     for link in links:
-        get_values_of_project(base_url, link, values_of_project, lifecycle_em=lifecycle_em)
+        get_values_of_project(base_url, link, values_of_project, project_type)
 
     return values_of_project
 
 
-def get_values_of_project(base_url, link, values_of_project, lifecycle_em):
+def get_values_of_project(base_url, link, values_of_project, project_type):
     url = f'{base_url}{link}'
     page = requests.get(url)
     soup = BeautifulSoup(page.content, 'html.parser')
     project_id = link.split('/')[0]
 
     logging.info(f"Project ID: {project_id}. Extracting values.")
-    values_of_project[project_id] = get_initial_project_data(project_id, lifecycle_em)
+    values_of_project[project_id] = {}
+    values_of_project[project_id]["project-name"] = project_id
 
     try:
-        extract_and_fill_values_of_rail_project(project_id, values_of_project, soup)
+        if project_type == Type.RAIL:
+            extract_and_fill_values_of_rail_project(project_id, values_of_project, soup)
+        else:
+            extract_and_fill_values_of_street_project(project_id, values_of_project, soup)
+
     except IndexError:
         logging.warning(f"Project ID: {project_id}. Couldn't extract some value. Is a subproject.")
         values_of_project.pop(project_id)
-
-
-def get_initial_project_data(project_id, lifecycle_em):
-    # TODO CO2 vs gesamt CO2
-    project_data = {
-        "project-name": project_id,
-        "name": None,
-        "co2_em": None,
-        "gesamt_co2": None,
-        "barwert_gesamt_co2": None,
-        "nox_value": None,
-        "barwert_nox": None,
-        "co_value": None,
-        "barwert_co": None,
-        "hc_value": None,
-        "barwert_hc": None,
-        "pm_value": None,
-        "barwert_pm": None,
-        "so2_value": None,
-        "barwert_so2": None,
-        "gesamtnutzen": None,
-        "kosten": None,
-    }
-
-    if lifecycle_em:
-        project_data["lifecycle_em"] = None
-        project_data["barwert_lifecycle_em"] = None
-        project_data["lifec_em"] = None
-
-    return project_data

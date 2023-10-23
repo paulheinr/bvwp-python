@@ -19,7 +19,7 @@ def read_csv(file_path):
 
 class MyTestCase(unittest.TestCase):
     def test_rail_output_csv(self):
-        self.check_file_diff_empty_by_csv(ORIGINAL_OUTPUT_FILE_RAIL, ORIGINAL_OUTPUT_FILE_CO2)
+        self.check_file_diff_empty_by_csv(ORIGINAL_OUTPUT_FILE_RAIL, "../bvwp-emissions/output/rail.csv")
 
     def test_co2_output_csv(self):
         self.check_file_diff_empty_by_pd(ORIGINAL_OUTPUT_FILE_CO2, "")

@@ -1,17 +1,19 @@
-import csv
+import pathlib
+import sys
 
 from utils.soup_extraction import *
 from utils.utils import string_to_float, float_to_string
+from utils.write_files import write_to_csv
 
 BASE_URL = "https://www.bvwp-projekte.de/schiene/"
 
 
-def analyze_rail():
+def analyze_rail(output_file):
     logging.info("Scraping links of all projects.")
     links = get_links(BASE_URL)
 
     logging.info("Scraping values for projects.")
-    values_of_project = get_values_of_projects(BASE_URL, links, False)
+    values_of_project = get_values_of_projects(BASE_URL, links, Type.RAIL)
 
     add_projects_manually(values_of_project)
 
@@ -20,7 +22,7 @@ def analyze_rail():
     calc_and_add_new_cost_benefit(values_of_project)
 
     logging.info("Writing csv file.")
-    write_to_csv(values_of_project)
+    write_to_csv(values_of_project, PROJECT_KEYS_RAIL, output_file)
 
 
 def add_projects_manually(values_of_project):
@@ -146,16 +148,6 @@ def add_projects_manually(values_of_project):
     }
 
 
-def write_to_csv(values_of_project):
-    header = ['name', 'project-name', 'Dringlichkeit', 'co2_em', 'gesamt_co2', 'barwert_gesamt_co2', 'nox_value',
-              'barwert_nox', 'co_value', 'barwert_co', 'hc_value', 'barwert_hc', 'pm_value', 'barwert_pm', 'so2_value',
-              'barwert_so2', 'gesamtnutzen', 'kosten', 'nkv', 'nkv_670', 'nkv_1000', 'nkv_1500', 'nkv_2000']
-    with open("BVWP-_Schiene.csv", 'w', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=header)
-        writer.writeheader()
-        writer.writerows(list(values_of_project.values()))
-
-
 def calc_and_add_new_cost_benefit(values_of_project):
     for project_values in values_of_project.values():
         kosten = string_to_float(project_values['kosten'])
@@ -174,4 +166,15 @@ def calc_and_add_new_cost_benefit(values_of_project):
 
 
 if __name__ == '__main__':
-    analyze_rail()
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.INFO)
+
+    if len(sys.argv) > 1:
+        file_path = sys.argv[1]
+        logging.info(f"Called rail analysis with argument: {file_path}")
+    else:
+        file_path = "./output/rail.csv"
+        logging.info(f"Called rail analysis without argument. Writing to default file: {file_path}")
+
+    pathlib.Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+    analyze_rail(file_path)
