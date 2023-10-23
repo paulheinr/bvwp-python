@@ -25,7 +25,8 @@ class MyTestCase(unittest.TestCase):
         self.check_file_diff_empty_by_pd(ORIGINAL_OUTPUT_FILE_CO2, "")
 
     def test_all_emissions_output_csv(self):
-        self.check_file_diff_empty_by_pd(ORIGINAL_OUTPUT_FILE_ALL_EMISSIONS, "")
+        self.check_file_diff_empty_by_csv(ORIGINAL_OUTPUT_FILE_ALL_EMISSIONS,
+                                          "../bvwp-emissions/output/all_emissions.csv")
 
     def check_file_diff_empty_by_pd(self, original_file, current_file):
         df_original = pd.read_csv(original_file)

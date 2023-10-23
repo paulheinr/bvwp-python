@@ -1,12 +1,12 @@
-import csv
-
 from utils.soup_extraction import *
-from utils.utils import string_to_float, float_to_string
+from utils.utils import string_to_float, float_to_string, get_output_file_path
+
+from utils.write_files import write_to_csv, PROJECT_KEYS_STREET
 
 BASE_URL = "https://www.bvwp-projekte.de/strasse/"
 
 
-def analyze_all_emissions():
+def analyze_all_emissions(file):
     logging.info("Scraping links of all projects.")
     links = get_links(BASE_URL)
 
@@ -20,11 +20,10 @@ def analyze_all_emissions():
     calc_and_add_new_cost_benefit(values_of_project)
 
     logging.info("Writing csv file.")
-    write_to_csv(values_of_project)
+    write_to_csv_custom(values_of_project, file)
 
 
 def clean_up_values(values_of_project):
-    global project_values
     to_remove = []
     for project_id, project_values in values_of_project.items():
         if all(value is None for key, value in project_values.items() if key != 'project-name'):
@@ -35,65 +34,60 @@ def clean_up_values(values_of_project):
 
 
 def calc_and_add_new_cost_benefit(values_of_project):
-    global project_values
-    for project_values in values_of_project.values():
-        barwert_lifecycle_em = string_to_float(project_values['barwert_lifecycle_em'])
-        barwert_co2 = string_to_float(project_values['barwert_co2'])
-        barwert_nox = string_to_float(project_values['barwert_nox'])
-        barwert_co = string_to_float(project_values['barwert_co'])
-        barwert_hc = string_to_float(project_values['barwert_hc'])
-        barwert_pm = string_to_float(project_values['barwert_pm'])
-        barwert_so2 = string_to_float(project_values['barwert_so2'])
-        kosten = string_to_float(project_values['kosten'])
-        gesamtnutzen = string_to_float(project_values['gesamtnutzen'])
+    for val in values_of_project.values():
+        barwert_lifecycle_em = string_to_float(val['barwert_lifecycle_em'])
+        barwert_co2 = string_to_float(val['barwert_co2'])
+        barwert_nox = string_to_float(val['barwert_nox'])
+        barwert_co = string_to_float(val['barwert_co'])
+        barwert_hc = string_to_float(val['barwert_hc'])
+        barwert_pm = string_to_float(val['barwert_pm'])
+        barwert_so2 = string_to_float(val['barwert_so2'])
+        kosten = string_to_float(val['kosten'])
+        gesamtnutzen = string_to_float(val['gesamtnutzen'])
 
-        project_values['nkv'] = float_to_string((gesamtnutzen / kosten))
-        project_values['nkv_670'] = float_to_string((gesamtnutzen - (
+        val['nkv'] = float_to_string((gesamtnutzen / kosten))
+        val['nkv_670'] = float_to_string((gesamtnutzen - (
                 barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2) + (
-                                                             670 / 145) * (
-                                                             barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2)) / kosten)  # bei Fünfach werden 4 zusätzliche addiert
-        project_values['nkv_1000'] = float_to_string((gesamtnutzen - (
+                                                  670 / 145) * (
+                                                  barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2)) / kosten)  # bei Fünfach werden 4 zusätzliche addiert
+        val['nkv_1000'] = float_to_string((gesamtnutzen - (
                 barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2) + (
-                                                              1000 / 145) * (
-                                                              barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2)) / kosten)
-        project_values['nkv_1500'] = float_to_string((gesamtnutzen - (
+                                                   1000 / 145) * (
+                                                   barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2)) / kosten)
+        val['nkv_1500'] = float_to_string((gesamtnutzen - (
                 barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2) + (
-                                                              1500 / 145) * (
-                                                              barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2)) / kosten)
-        project_values['nkv_2000'] = float_to_string((gesamtnutzen - (
+                                                   1500 / 145) * (
+                                                   barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2)) / kosten)
+        val['nkv_2000'] = float_to_string((gesamtnutzen - (
                 barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2) + (
-                                                              2000 / 145) * (
-                                                              barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2)) / kosten)
+                                                   2000 / 145) * (
+                                                   barwert_lifecycle_em + barwert_co2 + barwert_nox + barwert_co + barwert_hc + barwert_pm + barwert_so2)) / kosten)
 
 
-def write_to_csv(values_of_project):
+def write_to_csv_custom(values_of_project, file):
     anz_nkv_unter1_670 = 0
     anz_nkv_unter1_1000 = 0
     anz_nkv_unter1_1500 = 0
     anz_nkv_unter1_2000 = 0
-    for project_values in values_of_project.values():
-        if string_to_float(project_values['nkv_670']) < 1:
+    for v in values_of_project.values():
+        if string_to_float(v['nkv_670']) < 1:
             anz_nkv_unter1_670 += 1
 
-        if string_to_float(project_values['nkv_1000']) < 1:
+        if string_to_float(v['nkv_1000']) < 1:
             anz_nkv_unter1_1000 += 1
 
-        if string_to_float(project_values['nkv_1500']) < 1:
+        if string_to_float(v['nkv_1500']) < 1:
             anz_nkv_unter1_1500 += 1
 
-        if string_to_float(project_values['nkv_2000']) < 1:
+        if string_to_float(v['nkv_2000']) < 1:
             anz_nkv_unter1_2000 += 1
-    # creating the excel-file
-    header = ['project-name', 'lifec_em', 'lifecycle_em', 'barwert_lifecycle_em', 'nox_value', 'barwert_nox',
-              'co_value',
-              'barwert_co', 'co2_em', 'co2_value', 'barwert_co2', 'hc_value', 'barwert_hc', 'pm_value', 'barwert_pm',
-              'so2_value', 'barwert_so2', 'gesamtnutzen', 'kosten', 'nkv', 'nkv_670', 'nkv_1000', 'nkv_1500',
-              'nkv_2000']  # hier im Header hinzufügen
-    with open("BVWP_alleEm.csv", 'w', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=header)
-        writer.writeheader()
-        writer.writerows(list(values_of_project.values()))
-        writer.writerow({})
-        writer.writerow(
-            {'gesamtnutzen': 'Rausgefallene Projekte', 'nkv_670': anz_nkv_unter1_670, 'nkv_1000': anz_nkv_unter1_1000,
-             'nkv_1500': anz_nkv_unter1_1500, 'nkv_2000': anz_nkv_unter1_2000})
+
+    extra_line = {'gesamtnutzen': 'Rausgefallene Projekte', 'nkv_670': anz_nkv_unter1_670,
+                  'nkv_1000': anz_nkv_unter1_1000, 'nkv_1500': anz_nkv_unter1_1500, 'nkv_2000': anz_nkv_unter1_2000}
+
+    write_to_csv(values_of_project, PROJECT_KEYS_STREET, file, extra_line=extra_line)
+
+
+if __name__ == '__main__':
+    file_path = get_output_file_path("all_emissions")
+    analyze_all_emissions(file_path)

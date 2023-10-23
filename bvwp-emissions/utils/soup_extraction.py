@@ -5,16 +5,6 @@ from urllib.request import urlopen, Request
 import requests
 from bs4 import BeautifulSoup
 
-PROJECT_KEYS_STREET = ['project-name', 'lifec_em', 'lifecycle_em', 'barwert_lifecycle_em', 'nox_value', 'barwert_nox',
-                       'co_value', 'barwert_co', 'co2_em', 'co2_value', 'barwert_co2', 'hc_value', 'barwert_hc',
-                       'pm_value', 'barwert_pm', 'so2_value', 'barwert_so2', 'gesamtnutzen', 'kosten', 'nkv', 'nkv_670',
-                       'nkv_1000', 'nkv_1500', 'nkv_2000', 'nkv_90', 'nkv_95', 'nkv_975', 'nkv_995']
-
-PROJECT_KEYS_RAIL = ['name', 'project-name', 'Dringlichkeit', 'co2_em', 'gesamt_co2', 'barwert_gesamt_co2', 'nox_value',
-                     'barwert_nox', 'co_value', 'barwert_co', 'hc_value', 'barwert_hc', 'pm_value', 'barwert_pm',
-                     'so2_value', 'barwert_so2', 'gesamtnutzen', 'kosten', 'nkv', 'nkv_670', 'nkv_1000', 'nkv_1500',
-                     'nkv_2000']
-
 
 class Type(Enum):
     RAIL = 0
@@ -25,7 +15,8 @@ def fill_project_costs(project_id, values_of_project, soup):
     Tables = soup.findAll('table', attrs={'class': 'table_kosten'})
     for table in Tables:
         for row in table:
-            if 'Summe bewertungsrelevante Investitionskosten' in row.text:
+            if ('Summe bewertungsrelevante Investitionskosten' in row.text
+                    or 'Summe bewertungsrelevanter Investitionskosten' in row.text):
                 kosten = row.contents[2].text
                 values_of_project[project_id]["kosten"] = kosten
 
@@ -44,14 +35,14 @@ def fill_street_project_benefit(project_id, values_of_project, soup):
         if 'Gesamtnutzen' in row.text:
             gesamtnutzen = row.contents[3].text
 
-            # TODO
-            if gesamtnutzen == last_scraped_gesamtnutzen:
-                print(f"Gesamtnutzen {gesamtnutzen} bereits gescraped. Überspringe Website.")
-
-                if project_id in values_of_project:
-                    del values_of_project[project_id]
-                continue
-            last_scraped_gesamtnutzen = gesamtnutzen
+            # # TODO
+            # if gesamtnutzen == last_scraped_gesamtnutzen:
+            #     print(f"Gesamtnutzen {gesamtnutzen} bereits gescraped. Überspringe Website.")
+            #
+            #     if project_id in values_of_project:
+            #         del values_of_project[project_id]
+            #     continue
+            # last_scraped_gesamtnutzen = gesamtnutzen
             values_of_project[project_id]["gesamtnutzen"] = gesamtnutzen
 
 
@@ -115,6 +106,7 @@ def fill_rail_project_hc(project_id, values_of_project, soup):
 
 def fill_street_project_hc(project_id, values_of_project, soup):
     Tables = soup.findAll('table', attrs={'class': 'table_webprins'})
+    barwert_hc = None
     for table in Tables:
         abgasbelastung = False
         for row in table:
@@ -275,6 +267,7 @@ def extract_and_fill_values_of_street_project(project_id, values_of_project, sou
     fill_street_project_hc(project_id, values_of_project, soup)
     fill_street_project_pm(project_id, values_of_project, soup)
     fill_street_project_so2(project_id, values_of_project, soup)
+    fill_street_project_benefit(project_id, values_of_project, soup)
     fill_project_costs(project_id, values_of_project, soup)
 
 

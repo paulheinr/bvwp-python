@@ -1,9 +1,6 @@
-import pathlib
-import sys
-
 from utils.soup_extraction import *
-from utils.utils import string_to_float, float_to_string
-from utils.write_files import write_to_csv
+from utils.utils import string_to_float, float_to_string, get_output_file_path
+from utils.write_files import write_to_csv, PROJECT_KEYS_RAIL
 
 BASE_URL = "https://www.bvwp-projekte.de/schiene/"
 
@@ -166,15 +163,5 @@ def calc_and_add_new_cost_benefit(values_of_project):
 
 
 if __name__ == '__main__':
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.INFO)
-
-    if len(sys.argv) > 1:
-        file_path = sys.argv[1]
-        logging.info(f"Called rail analysis with argument: {file_path}")
-    else:
-        file_path = "./output/rail.csv"
-        logging.info(f"Called rail analysis without argument. Writing to default file: {file_path}")
-
-    pathlib.Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+    file_path = get_output_file_path("rail")
     analyze_rail(file_path)

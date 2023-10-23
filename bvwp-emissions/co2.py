@@ -1,12 +1,11 @@
-import csv
-
 from utils.soup_extraction import *
-from utils.utils import string_to_float, float_to_string
+from utils.utils import string_to_float, float_to_string, get_output_file_path
+from utils.write_files import write_to_csv, PROJECT_KEYS_STREET
 
 BASE_URL = "https://www.bvwp-projekte.de/strasse/"
 
 
-def analyze_co2():
+def analyze_co2(file):
     logging.info("Scraping links of all projects.")
     links = get_links(BASE_URL)
 
@@ -20,7 +19,7 @@ def analyze_co2():
     calc_and_add_new_cost_benefit(values_of_project, n0, n1, n2, n3)
 
     logging.info("Writing csv file.")
-    write_to_csv(values_of_project)
+    write_to_csv_custom(values_of_project, file)
 
 
 def clean_up_values(values_of_project):
@@ -191,7 +190,7 @@ def calc_and_add_new_cost_benefit(values_of_project, n0, n1, n2, n3):
 
 
 # creating the excel-file
-def write_to_csv(values_of_project):
+def write_to_csv_custom(values_of_project, file):
     anz_nkv_unter1_670 = 0
     anz_nkv_unter1_1000 = 0
     anz_nkv_unter1_1500 = 0
@@ -226,14 +225,13 @@ def write_to_csv(values_of_project):
         if string_to_float(project_values['nkv_995']) < 1:
             anz_nkv_unter1_995 += 1
 
-    header = []  # hier im Header hinzufügen
+    extra_line = {'gesamtnutzen': 'Rausgefallene Projekte', 'nkv_670': anz_nkv_unter1_670,
+                  'nkv_1000': anz_nkv_unter1_1000, 'nkv_1500': anz_nkv_unter1_1500, 'nkv_2000': anz_nkv_unter1_2000,
+                  'nkv_90': anz_nkv_unter1_90, 'nkv_95': anz_nkv_unter1_95, 'nkv_975': anz_nkv_unter1_975,
+                  'nkv_995': anz_nkv_unter1_995}
+    write_to_csv(values_of_project, PROJECT_KEYS_STREET, file, extra_line=extra_line)
 
-    with open("BVWP_CO2.csv", 'w', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=header)
-        writer.writeheader()
-        writer.writerows(list(values_of_project.values()))
-        writer.writerow({})
-        writer.writerow(
-            {'gesamtnutzen': 'Rausgefallene Projekte', 'nkv_670': anz_nkv_unter1_670, 'nkv_1000': anz_nkv_unter1_1000,
-             'nkv_1500': anz_nkv_unter1_1500, 'nkv_2000': anz_nkv_unter1_2000, 'nkv_90': anz_nkv_unter1_90,
-             'nkv_95': anz_nkv_unter1_95, 'nkv_975': anz_nkv_unter1_975, 'nkv_995': anz_nkv_unter1_995})
+
+if __name__ == '__main__':
+    file_path = get_output_file_path("co2")
+    analyze_co2(file_path)
